@@ -1,0 +1,15 @@
+/.sdk/
+/build/
+/dist/
+/out/
+/CMakeUserPresets.json
+/local/
+*.bin
+*.bin.mods
+*.dll
+*.dylib
+*.exe
+*.pdb
+*.so
+*.zip
+*.obj

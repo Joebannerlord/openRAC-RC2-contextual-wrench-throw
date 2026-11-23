@@ -1,0 +1,13 @@
+{
+  "format": 2,
+  "id": "rac2-contextual-wrench",
+  "name": "Contextual Wrench and Fire",
+  "author": "Joebannerlord",
+  "version": "0.1.1",
+  "description": "Fire with R2, keep native Lock-On with L2 + R2, and throw the drawn wrench while moving with R2 + Square.",
+  "games": { "rac2": ["ntsc"] },
+  "api": "1.12",
+  "plugin": { "windows-x86_64": "lib/windows-x86_64/rac2_contextual_wrench_011.dll" },
+  "license": "GPL-3.0-or-later",
+  "homepage": "https://github.com/Joebannerlord/openRAC-RC2-contextual-wrench-throw"
+}
