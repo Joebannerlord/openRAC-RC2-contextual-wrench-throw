@@ -2,7 +2,7 @@
 
 Throw the OmniWrench while running or jumping, inspired by A Crack in Time. With a weapon drawn, R2 fires through the game's normal weapon controls.
 
-Supports **Windows x86-64**, the **OpenRAC 1.1.0** game build, and **Ratchet & Clank: Going Commando USA v1.01** (`SCUS-97268`). The plugin uses OpenRAC mod API 1.12.
+Supports **Windows and Linux x86-64**, the **OpenRAC 1.1.0** game build, and **Ratchet & Clank: Going Commando USA v1.01** (`SCUS-97268`). The plugin uses OpenRAC mod API 1.12.
 
 ## Install
 
@@ -15,7 +15,7 @@ Supports **Windows x86-64**, the **OpenRAC 1.1.0** game build, and **Ratchet & C
 
 3. Choose **Install**, enable the mod, and start the game.
 
-You can also download the Windows ZIP from [Releases](https://github.com/Joebannerlord/openRAC-RC2-contextual-wrench-throw/releases) and import it through **Mods → Add a mod**. [OpenRAC installation guide](https://openrac.dev/mods/docs/install-from-link)
+You can also download the ZIP for your platform from [Releases](https://github.com/Joebannerlord/openRAC-RC2-contextual-wrench-throw/releases) and import it through **Mods → Add a mod**. [OpenRAC installation guide](https://openrac.dev/mods/docs/install-from-link)
 
 ## Controls
 
@@ -42,6 +42,21 @@ cmake --build build --config Release --target release_zip
 ```
 
 The Windows ZIP is written to `build/dist/`. The build and tests use synthetic inputs and the public SDK.
+
+## Build on Linux
+
+Use x86-64 Linux with GCC or Clang, CMake 3.24 or newer, Ninja, and Python 3.
+The fetcher downloads and verifies the OpenRAC Mod SDK pinned in [sdk.lock](sdk.lock).
+
+```sh
+python3 tools/fetch_sdk.py
+cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+cmake --build build
+ctest --test-dir build --output-on-failure
+cmake --build build --target release_zip
+```
+
+The Linux ZIP is written to `build/dist/`. The build and tests use synthetic inputs and the public SDK.
 
 ## Credits and license
 

@@ -3,8 +3,12 @@
 #include "../src/launch_addresses.hpp"
 #include "openrac/openrac_mod.h"
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#else
+#include <dlfcn.h>
+#endif
 
 #include <array>
 #include <cmath>
@@ -32,6 +36,22 @@ bool pose_valid = true;
 constexpr std::uint32_t hand = 0x301000;
 constexpr std::uint32_t wrench_state = hand + 0x20;
 constexpr std::uint32_t wrench_thrown = 0x18B05A;
+
+#ifdef _WIN32
+using library_handle = HMODULE;
+library_handle open_library(const wchar_t* path) { return LoadLibraryW(path); }
+void* load_symbol(library_handle library, const char* name) {
+    return reinterpret_cast<void*>(GetProcAddress(library, name));
+}
+void close_library(library_handle library) { FreeLibrary(library); }
+constexpr const char* platform = "windows-x86_64";
+#else
+using library_handle = void*;
+library_handle open_library(const char* path) { return dlopen(path, RTLD_NOW | RTLD_LOCAL); }
+void* load_symbol(library_handle library, const char* name) { return dlsym(library, name); }
+void close_library(library_handle library) { dlclose(library); }
+constexpr const char* platform = "linux-x86_64";
+#endif
 
 void check(bool ok, const char* why) {
     if (!ok) {
@@ -210,19 +230,23 @@ void check_cancellation() {
 
 } // namespace
 
+#ifdef _WIN32
 int wmain(int argc, wchar_t** argv) {
-    check(argc == 2, "expected path to packaged DLL");
-    const auto library = LoadLibraryW(argv[1]);
-    check(library != nullptr, "LoadLibraryW failed");
-    const auto query = reinterpret_cast<openrac_mod_query_fn>(GetProcAddress(library, OPENRAC_MOD_QUERY));
-    const auto load = reinterpret_cast<openrac_mod_load_fn>(GetProcAddress(library, OPENRAC_MOD_LOAD));
+#else
+int main(int argc, char** argv) {
+#endif
+    check(argc == 2, "expected path to packaged plugin");
+    const auto library = open_library(argv[1]);
+    check(library != nullptr, "opening plugin library failed");
+    const auto query = reinterpret_cast<openrac_mod_query_fn>(load_symbol(library, OPENRAC_MOD_QUERY));
+    const auto load = reinterpret_cast<openrac_mod_load_fn>(load_symbol(library, OPENRAC_MOD_LOAD));
     check(query && load, "mod exports missing");
     openrac_mod_info info{};
     info.size = sizeof info;
     query(&info);
     check(info.api_major == 1 && info.api_minor == 12
               && std::strcmp(info.id, "rac2-contextual-wrench") == 0
-              && std::strcmp(info.version, "0.1.1") == 0, "plugin query matches manifest");
+              && std::strcmp(info.version, "0.1.2") == 0, "plugin query matches manifest");
 
     openrac_api api{};
     api.size = sizeof api;
@@ -231,7 +255,7 @@ int wmain(int argc, wchar_t** argv) {
     api.game = "rac2";
     api.version = "ntsc";
     api.openrac_version = "1.1.0";
-    api.platform = "windows-x86_64";
+    api.platform = platform;
     api.memory = ram.data();
     api.fail = [](openrac_mod*, const char*) { refusing = true; };
     api.log = [](openrac_mod*, int, const char*) {};
@@ -281,5 +305,5 @@ int wmain(int argc, wchar_t** argv) {
     refusing = false;
     api.version = "ntsc2";
     check(load(&api, mod) != 0 && refusing, "USA v2.00 must refuse load");
-    FreeLibrary(library);
+    close_library(library);
 }

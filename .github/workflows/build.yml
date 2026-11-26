@@ -1,6 +1,5 @@
 # SPDX-License-Identifier: MIT
 # Copyright (c) 2026 the OpenRAC contributors
-# Adapted from the OpenRAC Mod SDK build workflow for a single Windows mod.
 name: Build and release
 
 on:
@@ -18,7 +17,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  build:
+  windows:
     name: Windows x86-64
     runs-on: windows-2025
     timeout-minutes: 20
@@ -50,27 +49,54 @@ jobs:
             exit 1
           fi
           python tools/fetch_sdk.py
-      - name: Build and package the mod
+      - name: Build, test, and package the mod
         run: |
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build
           ctest --test-dir build --output-on-failure
           cmake --build build --target release_zip
-      - name: Write archive checksum
-        run: |
-          cd build/dist
-          sha256sum *-windows-x86_64.zip > SHA256SUMS
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: windows-x86_64
-          path: |
-            build/dist/*-windows-x86_64.zip
-            build/dist/SHA256SUMS
+          path: build/dist/*-windows-x86_64.zip
+          if-no-files-found: error
+
+  linux:
+    name: Linux x86-64
+    runs-on: ubuntu-22.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - name: Set up CMake and Ninja
+        run: python -m pip install cmake ninja
+      - name: Check the tag and fetch the pinned SDK
+        run: |
+          version=$(python -c 'import json; print(json.load(open("openrac-mod.json"))["version"])')
+          if [[ "$GITHUB_REF_TYPE" == tag && "$GITHUB_REF_NAME" != "v$version" ]]; then
+            echo '::error::The release tag must match the manifest version.'
+            exit 1
+          fi
+          python tools/fetch_sdk.py
+      - name: Build, test, and package the mod
+        run: |
+          cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build
+          ctest --test-dir build --output-on-failure
+          cmake --build build --target release_zip
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-x86_64
+          path: build/dist/*-linux-x86_64.zip
           if-no-files-found: error
 
   release:
     name: Publish the tagged release
-    needs: build
+    needs: [windows, linux]
     if: github.ref_type == 'tag'
     runs-on: ubuntu-24.04
     timeout-minutes: 10
@@ -81,13 +107,18 @@ jobs:
         with:
           name: windows-x86_64
           path: dist
-      - name: Verify and publish the package
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: linux-x86_64
+          path: dist
+      - name: Write shared checksums and publish the packages
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           TAG: ${{ github.ref_name }}
         run: |
-          (cd dist && sha256sum --check --strict SHA256SUMS)
-          gh release create "$TAG" --verify-tag --title "$TAG" \
-            --notes "Windows x86-64 for Going Commando USA v1.01 (SCUS-97268) on OpenRAC 1.1.0. Select Going Commando, choose Mods → Add from a link, and paste this repository's URL. Use R2 + Square to throw the wrench, R2 to fire, and L2 + R2 to lock on and fire with the weapon upgrade." \
-            dist/*-windows-x86_64.zip dist/SHA256SUMS
+          cd dist
+          sha256sum *-windows-x86_64.zip *-linux-x86_64.zip > SHA256SUMS
+          sha256sum --check --strict SHA256SUMS
+          gh release create "$TAG" --verify-tag --title "$TAG" --notes-from-tag \
+            *-windows-x86_64.zip *-linux-x86_64.zip SHA256SUMS
